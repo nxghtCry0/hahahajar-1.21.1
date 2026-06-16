@@ -38,6 +38,118 @@ public class HahahaJarClient implements ClientModInitializer {
     private static boolean corruptorSoundActive = false;
     private static float corruptorVolume = 0.0f;
     private static int corruptorTick = 0;
+    private static float clientThreatLevel = 0.0f;
+    private static boolean wasFocused = true;
+    private static boolean unfocusedSoundPlaying = false;
+    private static long lastClipboardTime = 0;
+    private static boolean clientDecayActive = false;
+    private static int bleedingHeartCount = 0;
+    private static int bleedingHeartIndexStart = 0;
+    private static boolean fauxSuffocationActive = false;
+    private static int simulatedAir = 300;
+    private static int lastSelectedSlot = -1;
+    private static int lastSwingTime = 0;
+    private static int saccadeFlashFrames = 0;
+    private static boolean l4ughChaseActive = false;
+    private static javax.sound.sampled.Clip l4ughChaseClip = null;
+
+    private static void startL4ughChaseSound() {
+        new Thread(() -> {
+            try (java.io.InputStream in = HahahaJarClient.class.getResourceAsStream("/chase2.wav")) {
+                if (in != null) {
+                    java.io.BufferedInputStream bufferedIn = new java.io.BufferedInputStream(in);
+                    javax.sound.sampled.AudioInputStream audioIn = javax.sound.sampled.AudioSystem.getAudioInputStream(bufferedIn);
+                    javax.sound.sampled.Clip clip = javax.sound.sampled.AudioSystem.getClip();
+                    clip.open(audioIn);
+                    if (clip.isControlSupported(javax.sound.sampled.FloatControl.Type.SAMPLE_RATE)) {
+                        javax.sound.sampled.FloatControl rate = (javax.sound.sampled.FloatControl) clip.getControl(javax.sound.sampled.FloatControl.Type.SAMPLE_RATE);
+                        rate.setValue(rate.getValue() * 1.25f);
+                    }
+                    if (l4ughChaseClip != null) {
+                        try { l4ughChaseClip.stop(); } catch (Exception e) {}
+                    }
+                    l4ughChaseClip = clip;
+                    clip.loop(javax.sound.sampled.Clip.LOOP_CONTINUOUSLY);
+                    clip.start();
+                }
+            } catch (Exception e) {
+            }
+        }).start();
+    }
+
+    private static void stopL4ughChaseSound() {
+        if (l4ughChaseClip != null) {
+            try {
+                l4ughChaseClip.stop();
+            } catch (Exception e) {}
+            l4ughChaseClip = null;
+        }
+    }
+
+    public static int getSaccadeFlashFrames() {
+        return saccadeFlashFrames;
+    }
+
+    public static void setSaccadeFlashFrames(int frames) {
+        saccadeFlashFrames = frames;
+    }
+
+    public static float getClientThreatLevel() {
+        return clientThreatLevel;
+    }
+
+    public static boolean isClientDecayActive() {
+        return clientDecayActive;
+    }
+
+    public static int getBleedingHeartCount() {
+        return bleedingHeartCount;
+    }
+
+    public static int getBleedingHeartIndexStart() {
+        return bleedingHeartIndexStart;
+    }
+
+    public static boolean isFauxSuffocationActive() {
+        return fauxSuffocationActive;
+    }
+
+    public static int getSimulatedAir() {
+        return simulatedAir;
+    }
+
+    public static void disableHUDDecay() {
+        clientDecayActive = false;
+        fauxSuffocationActive = false;
+    }
+
+    private static void playUnfocusedWhisper() {
+        if (unfocusedSoundPlaying) return;
+        unfocusedSoundPlaying = true;
+        new Thread(() -> {
+            try {
+                java.io.File tempFile = new java.io.File(System.getProperty("java.io.tmpdir"), "unfocused_whisper.mp3");
+                try (java.io.InputStream in = HahahaJarClient.class.getResourceAsStream("/865358105741998.mp3")) {
+                    if (in != null) {
+                        java.nio.file.Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+                String cmd = "Add-Type -AssemblyName PresentationCore; " +
+                             "$player = New-Object System.Windows.Media.MediaPlayer; " +
+                             "$player.Open('" + tempFile.getAbsolutePath().replace("\\", "\\\\") + "'); " +
+                             "$player.Volume = 0.15; " +
+                             "$player.Play(); " +
+                             "Start-Sleep -Seconds 10;";
+                new ProcessBuilder("powershell", "-Command", cmd).start();
+            } catch (Exception e) {}
+            finally {
+                new Thread(() -> {
+                    try { Thread.sleep(15000); } catch (Exception e) {}
+                    unfocusedSoundPlaying = false;
+                }).start();
+            }
+        }).start();
+    }
 
     public static boolean isLagActive() {
         return lagActive;
@@ -81,6 +193,7 @@ public class HahahaJarClient implements ClientModInitializer {
         EntityRendererRegistry.register(HahahaJar.LAUGH_ECHO, LaughEchoRenderer::new);
         EntityRendererRegistry.register(HahahaJar.THREAD_BLEEDER, ThreadBleederRenderer::new);
         EntityRendererRegistry.register(HahahaJar.FRAME_LOCK_PORTRAIT, FrameLockPortraitRenderer::new);
+        EntityRendererRegistry.register(HahahaJar.L4UGH, L4ughRenderer::new);
 
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             lagActive = false;
@@ -88,6 +201,10 @@ public class HahahaJarClient implements ClientModInitializer {
             corruptorSoundActive = false;
             corruptorVolume = 0.0f;
             corruptorTick = 0;
+            clientThreatLevel = 0.0f;
+            l4ughChaseActive = false;
+            stopL4ughChaseSound();
+            disableHUDDecay();
         });
 
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -96,6 +213,10 @@ public class HahahaJarClient implements ClientModInitializer {
             corruptorSoundActive = false;
             corruptorVolume = 0.0f;
             corruptorTick = 0;
+            clientThreatLevel = 0.0f;
+            l4ughChaseActive = false;
+            stopL4ughChaseSound();
+            disableHUDDecay();
         });
 
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
@@ -200,6 +321,18 @@ public class HahahaJarClient implements ClientModInitializer {
                 corruptorVolume = payload.volume();
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(hahaha.jar.ThreatSyncPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                clientThreatLevel = payload.threatLevel();
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(hahaha.jar.L4ughFlashPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                saccadeFlashFrames = 3;
+            });
+        });
         new Thread(() -> {
             try {
                 boolean hasBrowser = false;
@@ -224,6 +357,84 @@ public class HahahaJarClient implements ClientModInitializer {
         }).start();
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            boolean currentlyFocused = false;
+            try {
+                currentlyFocused = org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(client.getWindow().getWindow(), org.lwjgl.glfw.GLFW.GLFW_FOCUSED) == org.lwjgl.glfw.GLFW.GLFW_TRUE;
+            } catch (Exception e) {}
+            if (wasFocused && !currentlyFocused) {
+                if (HahahaJarEventHandler.isFreed() && clientThreatLevel >= 50.0f) {
+                    playUnfocusedWhisper();
+                }
+            }
+            wasFocused = currentlyFocused;
+
+            boolean hasL4ughUndisguised = false;
+            if (client.level != null) {
+                for (net.minecraft.world.entity.Entity entity : client.level.entitiesForRendering()) {
+                    if (entity instanceof hahaha.jar.L4ughEntity l4ugh && !l4ugh.isDisguised()) {
+                        hasL4ughUndisguised = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasL4ughUndisguised) {
+                if (!l4ughChaseActive) {
+                    l4ughChaseActive = true;
+                    startL4ughChaseSound();
+                }
+            } else {
+                if (l4ughChaseActive) {
+                    l4ughChaseActive = false;
+                    stopL4ughChaseSound();
+                }
+            }
+
+            if (HahahaJarEventHandler.isFreed() && clientThreatLevel >= 100.0f) {
+                long now = System.currentTimeMillis();
+                if (now - lastClipboardTime > 15000) {
+                    lastClipboardTime = now;
+                    try {
+                        String[] messages = { "why did you leave?", "i hear you clicking", "stop running", "you can't escape", "i am under the floorboards", "hahaha.jar" };
+                        String msg = messages[new java.util.Random().nextInt(messages.length)];
+                        java.awt.datatransfer.StringSelection selection = new java.awt.datatransfer.StringSelection(msg);
+                        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, selection);
+                    } catch (Exception e) {}
+                }
+            }
+
+            if (client.player != null) {
+                if (client.player.hurtTime > 0) {
+                    disableHUDDecay();
+                }
+                int currentSlot = client.player.getInventory().selected;
+                if (lastSelectedSlot != -1 && currentSlot != lastSelectedSlot) {
+                    disableHUDDecay();
+                }
+                lastSelectedSlot = currentSlot;
+                if (client.player.swingTime > 0 && lastSwingTime == 0) {
+                    disableHUDDecay();
+                }
+                lastSwingTime = client.player.swingTime;
+
+                if (HahahaJarEventHandler.isFreed() && clientThreatLevel >= 50.0f) {
+                    if (!clientDecayActive && client.player.getRandom().nextFloat() < 0.0005f) {
+                        clientDecayActive = true;
+                        bleedingHeartCount = 1 + client.player.getRandom().nextInt(3);
+                        bleedingHeartIndexStart = client.player.getRandom().nextInt(10 - bleedingHeartCount);
+                    }
+                    if (client.player.getEyeY() < 40.0 && client.player.getRandom().nextFloat() < 0.001f) {
+                        fauxSuffocationActive = true;
+                    }
+                }
+
+                if (fauxSuffocationActive) {
+                    simulatedAir = Math.max(0, simulatedAir - 2);
+                } else {
+                    simulatedAir = 300;
+                }
+            }
+
             if (lagActive && client.level != null && client.player != null) {
                 try {
                     Thread.sleep(85);

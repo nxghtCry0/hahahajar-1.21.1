@@ -7,7 +7,10 @@
 		"SoundOptionsScreenMixin",
 		"OptionsScreenMixin",
 		"AbstractContainerScreenMixin",
-		"PlayerInfoMixin"
+		"PlayerInfoMixin",
+		"SubtitleOverlayMixin",
+		"GameRendererMixin",
+		"GuiMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

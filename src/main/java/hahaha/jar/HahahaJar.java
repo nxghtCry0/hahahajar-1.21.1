@@ -33,6 +33,14 @@ public class HahahaJar implements ModInitializer {
 			.build("frame_lock_portrait")
 	);
 
+	public static final net.minecraft.world.entity.EntityType<L4ughEntity> L4UGH = net.minecraft.core.Registry.register(
+		net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE,
+		net.minecraft.resources.ResourceLocation.parse("hahahajar:l4ugh"),
+		net.minecraft.world.entity.EntityType.Builder.of(L4ughEntity::new, net.minecraft.world.entity.MobCategory.MONSTER)
+			.sized(1.2f, 5.0f)
+			.build("l4ugh")
+	);
+
 	@Override
 	public void onInitialize() {
 		LOGGER.info("Hello Fabric world!");
@@ -91,12 +99,69 @@ public class HahahaJar implements ModInitializer {
 			if (runBuildDir.exists() || runBuildDir.mkdirs()) {
 				javax.imageio.ImageIO.write(javax.imageio.ImageIO.read(file2), "png", new java.io.File(runBuildDir, "white.png"));
 			}
+
+			java.io.File file3 = new java.io.File(assetsSrc, "saccade.png");
+			if (!file3.exists()) {
+				java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(256, 256, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+				java.awt.Graphics2D g = img.createGraphics();
+				g.setColor(new java.awt.Color(0, 0, 0, 180));
+				g.fillRect(0, 0, 256, 256);
+				g.setColor(java.awt.Color.WHITE);
+				g.fillOval(60, 80, 40, 50);
+				g.fillOval(156, 80, 40, 50);
+				g.setColor(java.awt.Color.BLACK);
+				g.fillOval(75, 95, 10, 10);
+				g.fillOval(171, 95, 10, 10);
+				g.setColor(java.awt.Color.WHITE);
+				g.setStroke(new java.awt.BasicStroke(4.0f));
+				g.drawArc(60, 130, 136, 60, 0, -180);
+				java.util.Random rand = new java.util.Random(42L);
+				for (int i = 0; i < 20; i++) {
+					int x1 = rand.nextInt(256);
+					int y1 = rand.nextInt(256);
+					int x2 = x1 + rand.nextInt(50) - 25;
+					int y2 = y1 + rand.nextInt(10) - 5;
+					g.drawLine(x1, y1, x2, y2);
+				}
+				g.dispose();
+				javax.imageio.ImageIO.write(img, "png", file3);
+			}
+			javax.imageio.ImageIO.write(javax.imageio.ImageIO.read(file3), "png", new java.io.File(buildDir, "saccade.png"));
+			if (runBuildDir.exists() || runBuildDir.mkdirs()) {
+				javax.imageio.ImageIO.write(javax.imageio.ImageIO.read(file3), "png", new java.io.File(runBuildDir, "saccade.png"));
+			}
+
+			java.io.File file4 = new java.io.File(assetsSrc, "bleeding_heart.png");
+			if (!file4.exists()) {
+				java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(9, 9, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+				java.awt.Graphics2D g = img.createGraphics();
+				g.setColor(new java.awt.Color(0, 0, 0, 0));
+				g.fillRect(0, 0, 9, 9);
+				g.setColor(java.awt.Color.BLACK);
+				g.fillRect(1, 1, 3, 3);
+				g.fillRect(5, 1, 3, 3);
+				g.fillRect(2, 4, 5, 2);
+				g.fillRect(3, 6, 3, 2);
+				g.fillRect(4, 8, 1, 1);
+				g.setColor(new java.awt.Color(180, 0, 0));
+				g.fillRect(2, 5, 1, 1);
+				g.fillRect(6, 5, 1, 1);
+				g.fillRect(3, 7, 1, 1);
+				g.fillRect(4, 9, 1, 1);
+				g.dispose();
+				javax.imageio.ImageIO.write(img, "png", file4);
+			}
+			javax.imageio.ImageIO.write(javax.imageio.ImageIO.read(file4), "png", new java.io.File(buildDir, "bleeding_heart.png"));
+			if (runBuildDir.exists() || runBuildDir.mkdirs()) {
+				javax.imageio.ImageIO.write(javax.imageio.ImageIO.read(file4), "png", new java.io.File(runBuildDir, "bleeding_heart.png"));
+			}
 		} catch (Exception e) {
 		}
 
 		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(LAUGH_ECHO, LaughEchoEntity.createMobAttributes());
 		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(THREAD_BLEEDER, ThreadBleederEntity.createMobAttributes());
 		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(FRAME_LOCK_PORTRAIT, FrameLockPortraitEntity.createMobAttributes());
+		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(L4UGH, L4ughEntity.createMobAttributes());
 
 		PayloadTypeRegistry.playS2C().register(SfxPayload.TYPE, SfxPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(ChasePayload.TYPE, ChasePayload.CODEC);
@@ -107,6 +172,8 @@ public class HahahaJar implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(ThreadBleederLagPayload.TYPE, ThreadBleederLagPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(RegistryCorruptorWakeupPayload.TYPE, RegistryCorruptorWakeupPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(CorruptorSoundPayload.TYPE, CorruptorSoundPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ThreatSyncPayload.TYPE, ThreatSyncPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(L4ughFlashPayload.TYPE, L4ughFlashPayload.CODEC);
 		HahahaJarEventHandler.register();
 	}
 }

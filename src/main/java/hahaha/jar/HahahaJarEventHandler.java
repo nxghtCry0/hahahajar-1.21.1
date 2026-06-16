@@ -59,6 +59,49 @@ public class HahahaJarEventHandler {
     private static final Map<UUID, Integer> CORRUPTOR_SLOTS = new HashMap<>();
     private static final Map<UUID, Integer> CORRUPTOR_TICKS = new HashMap<>();
     private static final Map<UUID, Integer> PROCESSED_CONTAINERS = new HashMap<>();
+    private static final List<UUID> THING_ON_RESPAWN_PLAYERS = new ArrayList<>();
+    private static final List<BlockPos> TRACKED_BLOCKS = new ArrayList<>();
+    private static final Map<UUID, BlockPos> LAST_CONTAINERS = new HashMap<>();
+
+    private static void loadTrackedBlocks() {
+        try {
+            java.io.File file = new java.io.File("hahaha_tracked_blocks.txt");
+            if (file.exists()) {
+                TRACKED_BLOCKS.clear();
+                List<String> lines = java.nio.file.Files.readAllLines(file.toPath());
+                for (String line : lines) {
+                    String[] parts = line.split(",");
+                    if (parts.length == 3) {
+                        TRACKED_BLOCKS.add(new BlockPos(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])));
+                    }
+                }
+            }
+        } catch (Exception e) {}
+    }
+
+    private static void saveTrackedBlocks() {
+        try {
+            java.io.File file = new java.io.File("hahaha_tracked_blocks.txt");
+            List<String> lines = new ArrayList<>();
+            for (BlockPos pos : TRACKED_BLOCKS) {
+                lines.add(pos.getX() + "," + pos.getY() + "," + pos.getZ());
+            }
+            java.nio.file.Files.write(file.toPath(), lines);
+        } catch (Exception e) {}
+    }
+
+    private static void trackBlock(BlockPos pos) {
+        if (!TRACKED_BLOCKS.contains(pos)) {
+            TRACKED_BLOCKS.add(pos);
+            saveTrackedBlocks();
+        }
+    }
+
+    private static void untrackBlock(BlockPos pos) {
+        if (TRACKED_BLOCKS.remove(pos)) {
+            saveTrackedBlocks();
+        }
+    }
 
     private static class GaslightBlock {
         BlockPos pos;
@@ -357,12 +400,24 @@ public class HahahaJarEventHandler {
             int containerSize = player.containerMenu.slots.size() - 36;
             if (containerSize > 0) {
                 int slotIdx = player.getRandom().nextInt(containerSize);
+                ItemStack existing = player.containerMenu.slots.get(slotIdx).getItem();
                 player.containerMenu.slots.get(slotIdx).set(corruptor);
+                if (!existing.isEmpty() && existing.getItem() != Items.OBSIDIAN) {
+                    if (!player.getInventory().add(existing)) {
+                        player.drop(existing, false);
+                    }
+                }
                 player.containerMenu.broadcastChanges();
                 return;
             }
         }
+        ItemStack existing = player.getInventory().getItem(0);
         player.getInventory().setItem(0, corruptor);
+        if (!existing.isEmpty() && existing.getItem() != Items.OBSIDIAN) {
+            if (!player.getInventory().add(existing)) {
+                player.drop(existing, false);
+            }
+        }
         player.containerMenu.broadcastChanges();
     }
 
@@ -403,6 +458,7 @@ public class HahahaJarEventHandler {
 
     public static void register() {
         checkObsMode();
+        loadTrackedBlocks();
 
         ServerPlayNetworking.registerGlobalReceiver(RegistryCorruptorWakeupPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
@@ -430,7 +486,13 @@ public class HahahaJarEventHandler {
                         }
                     }
                     ItemStack corruptor = createCorruptorItem();
+                    ItemStack existing = player.getInventory().getItem(0);
                     player.getInventory().setItem(0, corruptor);
+                    if (!existing.isEmpty() && existing.getItem() != Items.OBSIDIAN) {
+                        if (!player.getInventory().add(existing)) {
+                            player.drop(existing, false);
+                        }
+                    }
                     player.containerMenu.broadcastChanges();
                     ServerPlayNetworking.send(player, new CorruptorSoundPayload(true, 0.2f));
                 }
@@ -441,13 +503,14 @@ public class HahahaJarEventHandler {
             if (world.isClientSide()) {
                 return true;
             }
+            untrackBlock(pos);
             if (isChaseActive(player.getUUID())) {
                 return false;
             }
             if (world instanceof ServerLevel serverLevel) {
                 java.util.List<ThreadBleederEntity> bleeders = serverLevel.getEntitiesOfClass(ThreadBleederEntity.class, player.getBoundingBox().inflate(100.0));
-                for (ThreadBleederEntity bleeder : bleeders) {
-                    bleeder.onPlayerAction((ServerPlayer) player);
+                for (ThreadBleederEntity bleed : bleeders) {
+                    bleed.onPlayerAction((ServerPlayer) player);
                 }
             }
             if (!isFreed()) {
@@ -491,6 +554,21 @@ public class HahahaJarEventHandler {
                 if (isFreed()) {
                     player.sendSystemMessage(Component.literal("[hahaha.jar] Cannot rest now, it is observing.").withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
                     return net.minecraft.world.InteractionResult.FAIL;
+                }
+            }
+            if (isFreed()) {
+                if (player instanceof ServerPlayer serverPlayer) {
+                    BlockPos spawn = serverPlayer.getRespawnPosition();
+                    if (spawn == null) {
+                        spawn = serverPlayer.serverLevel().getSharedSpawnPos();
+                    }
+                    if (pos.closerThan(spawn, 30.0)) {
+                        trackBlock(pos);
+                        trackBlock(pos.relative(hitResult.getDirection()));
+                    }
+                    if (state.getBlock() instanceof net.minecraft.world.level.block.ChestBlock || state.getBlock() instanceof net.minecraft.world.level.block.ShulkerBoxBlock || state.getBlock() instanceof net.minecraft.world.level.block.BarrelBlock) {
+                        LAST_CONTAINERS.put(player.getUUID(), pos.immutable());
+                    }
                 }
             }
             return net.minecraft.world.InteractionResult.PASS;
@@ -700,6 +778,25 @@ public class HahahaJarEventHandler {
                 }
             }
 
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (player.isDeadOrDying()) {
+                    if (player.getTags().contains("hahahajar_l4ugh_damaged")) {
+                        player.removeTag("hahahajar_l4ugh_damaged");
+                        if (!THING_ON_RESPAWN_PLAYERS.contains(player.getUUID())) {
+                            THING_ON_RESPAWN_PLAYERS.add(player.getUUID());
+                        }
+                        for (L4ughEntity l4ugh : player.serverLevel().getEntitiesOfClass(L4ughEntity.class, player.getBoundingBox().inflate(300.0))) {
+                            l4ugh.discard();
+                        }
+                    }
+                } else {
+                    if (THING_ON_RESPAWN_PLAYERS.contains(player.getUUID())) {
+                        THING_ON_RESPAWN_PLAYERS.remove(player.getUUID());
+                        triggerThing(player);
+                    }
+                }
+            }
+
             serverTicks++;
             if (isFreed() && serverTicks % 1200 == 0 && server.overworld().isNight()) {
                 int day = (int) (server.overworld().getDayTime() / 24000L);
@@ -709,6 +806,92 @@ public class HahahaJarEventHandler {
                         int chance = Math.max(1, 3 - day / 3);
                         if (player.getRandom().nextInt(chance) == 0) {
                             spawnLaughEcho(player, false);
+                        }
+                    }
+                }
+            }
+
+            if (isFreed() && serverTicks % 1000 == 0 && server.overworld().isNight()) {
+                boolean l4ughExists = false;
+                for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (!player.serverLevel().getEntitiesOfClass(L4ughEntity.class, player.getBoundingBox().inflate(300.0)).isEmpty()) {
+                        l4ughExists = true;
+                        break;
+                    }
+                }
+                if (!l4ughExists) {
+                    for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                        if (player.getRandom().nextFloat() < 0.3f) {
+                            double angle = player.getRandom().nextDouble() * Math.PI * 2;
+                            double dist = 40.0 + player.getRandom().nextDouble() * 20.0;
+                            double x = player.getX() + Math.cos(angle) * dist;
+                            double z = player.getZ() + Math.sin(angle) * dist;
+                            BlockPos spawnPos = LaughEchoEntity.findSpawnPos(player.serverLevel(), x, player.getY(), z);
+                            net.minecraft.world.level.block.state.BlockState spawnBlock = player.serverLevel().getBlockState(spawnPos.below());
+                            if (!spawnBlock.is(Blocks.SAND) && !spawnBlock.is(Blocks.RED_SAND) && !spawnBlock.is(net.minecraft.tags.BlockTags.SAND)) {
+                                L4ughEntity l4ugh = HahahaJar.L4UGH.create(player.serverLevel());
+                                if (l4ugh != null) {
+                                    l4ugh.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
+                                    player.serverLevel().addFreshEntity(l4ugh);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (isFreed() && serverTicks % 400 == 0) {
+                for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    BlockPos spawn = player.getRespawnPosition();
+                    if (spawn == null) {
+                        spawn = player.serverLevel().getSharedSpawnPos();
+                    }
+                    double dist = player.distanceToSqr(spawn.getX() + 0.5, spawn.getY() + 0.5, spawn.getZ() + 0.5);
+                    if (dist > 1600.0) {
+                        ServerLevel world = player.serverLevel();
+                        if (!TRACKED_BLOCKS.isEmpty()) {
+                            BlockPos targetPos = TRACKED_BLOCKS.get(player.getRandom().nextInt(TRACKED_BLOCKS.size()));
+                            if (world.hasChunkAt(targetPos)) {
+                                net.minecraft.world.level.block.state.BlockState targetState = world.getBlockState(targetPos);
+                                if (targetState.is(Blocks.TORCH) || targetState.is(Blocks.WALL_TORCH)) {
+                                    for (Direction dir : Direction.values()) {
+                                        BlockPos adjacent = targetPos.relative(dir);
+                                        if (world.isEmptyBlock(adjacent)) {
+                                            world.setBlock(targetPos, Blocks.AIR.defaultBlockState(), 3);
+                                            world.setBlock(adjacent, targetState, 3);
+                                            trackBlock(adjacent);
+                                            untrackBlock(targetPos);
+                                            break;
+                                        }
+                                    }
+                                } else if (targetState.getBlock() instanceof net.minecraft.world.level.block.FenceGateBlock) {
+                                    boolean open = targetState.getValue(net.minecraft.world.level.block.FenceGateBlock.OPEN);
+                                    world.setBlock(targetPos, targetState.setValue(net.minecraft.world.level.block.FenceGateBlock.OPEN, !open), 3);
+                                    world.playSound(null, targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5,
+                                        open ? SoundEvents.FENCE_GATE_CLOSE : SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+                                } else if (targetState.is(net.minecraft.tags.BlockTags.PLANKS)) {
+                                    net.minecraft.world.level.block.Block newBlock = player.getRandom().nextBoolean() ? Blocks.MOSSY_COBBLESTONE : Blocks.CRACKED_STONE_BRICKS;
+                                    world.setBlock(targetPos, newBlock.defaultBlockState(), 3);
+                                    untrackBlock(targetPos);
+                                }
+                            }
+                        }
+                        if (player.getRandom().nextFloat() < 0.05f) {
+                            BlockPos containerPos = LAST_CONTAINERS.get(player.getUUID());
+                            if (containerPos != null && world.hasChunkAt(containerPos)) {
+                                net.minecraft.world.level.block.entity.BlockEntity be = world.getBlockEntity(containerPos);
+                                if (be instanceof net.minecraft.world.Container container) {
+                                    int size = container.getContainerSize();
+                                    for (int i = 0; i < size / 2; i++) {
+                                        ItemStack first = container.getItem(i);
+                                        ItemStack last = container.getItem(size - 1 - i);
+                                        container.setItem(i, last);
+                                        container.setItem(size - 1 - i, first);
+                                    }
+                                    container.setChanged();
+                                }
+                            }
                         }
                     }
                 }
@@ -844,11 +1027,12 @@ public class HahahaJarEventHandler {
                         if (currentThreat >= 100.0f) {
                             if (player.getRandom().nextFloat() < 0.0025f) {
                                 triggerRandomEvent(player);
+                                currentThreat = 0.0f;
                                 THREAT_LEVELS.put(uuid, 0.0f);
                                 exhaustionCooldown = 3000;
-                                break;
                             }
                         }
+                        ServerPlayNetworking.send(player, new ThreatSyncPayload(currentThreat));
                     }
                 }
             }
@@ -871,7 +1055,13 @@ public class HahahaJarEventHandler {
                             int containerSize = player.containerMenu.slots.size() - 36;
                             if (containerSize > 0 && player.getRandom().nextFloat() < 0.5f) {
                                 int slotIdx = player.getRandom().nextInt(containerSize);
+                                ItemStack existing = player.containerMenu.slots.get(slotIdx).getItem();
                                 player.containerMenu.slots.get(slotIdx).set(createCorruptorItem());
+                                if (!existing.isEmpty() && existing.getItem() != Items.OBSIDIAN) {
+                                    if (!player.getInventory().add(existing)) {
+                                        player.drop(existing, false);
+                                    }
+                                }
                                 player.containerMenu.broadcastChanges();
                             }
                         }
@@ -914,12 +1104,12 @@ public class HahahaJarEventHandler {
                 
                 if (hasCorruptor) {
                     java.util.List<net.minecraft.world.entity.item.ItemEntity> items = player.serverLevel().getEntitiesOfClass(
-                        net.minecraft.world.entity.item.ItemEntity.class,
-                        player.getBoundingBox().inflate(10.0),
-                        ie -> {
-                            ItemStack is = ie.getItem();
-                            return is.getItem() == Items.OBSIDIAN && is.getHoverName().getString().contains("§c§kHAHAHAHA§r");
-                        }
+                         net.minecraft.world.entity.item.ItemEntity.class,
+                         player.getBoundingBox().inflate(10.0),
+                         ie -> {
+                             ItemStack is = ie.getItem();
+                             return is.getItem() == Items.OBSIDIAN && is.getHoverName().getString().contains("§c§kHAHAHAHA§r");
+                         }
                     );
                     for (net.minecraft.world.entity.item.ItemEntity ie : items) {
                         ie.discard();
@@ -933,31 +1123,26 @@ public class HahahaJarEventHandler {
                             if (targetSlot < 0) targetSlot = 1;
                             if (targetSlot > 8) targetSlot = 7;
                             
-                            ItemStack deadItem = new ItemStack(Items.COAL);
-                            deadItem.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("§4l a u g h"));
-                            player.getInventory().setItem(targetSlot, deadItem);
-                            
-                            ItemStack corruptorItem = createCorruptorItem();
+                            ItemStack targetStack = player.getInventory().getItem(targetSlot);
+                            ItemStack corruptorItem = player.getInventory().getItem(currentSlot);
                             player.getInventory().setItem(targetSlot, corruptorItem);
-                            player.getInventory().setItem(currentSlot, ItemStack.EMPTY);
+                            player.getInventory().setItem(currentSlot, targetStack);
                             player.containerMenu.broadcastChanges();
                         } else if (currentSlot == 99) {
-                            ItemStack deadItem = new ItemStack(Items.COAL);
-                            deadItem.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("§4l a u g h"));
-                            player.getInventory().setItem(0, deadItem);
-                            
-                            ItemStack corruptorItem = createCorruptorItem();
-                            player.getInventory().setItem(0, corruptorItem);
-                            player.containerMenu.setCarried(ItemStack.EMPTY);
+                            int targetSlot = player.getRandom().nextInt(9);
+                            ItemStack targetStack = player.getInventory().getItem(targetSlot);
+                            ItemStack corruptorItem = player.containerMenu.getCarried();
+                            player.containerMenu.setCarried(targetStack);
+                            player.getInventory().setItem(targetSlot, corruptorItem);
                             player.containerMenu.broadcastChanges();
                         } else {
-                            ItemStack deadItem = new ItemStack(Items.COAL);
-                            deadItem.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("§4l a u g h"));
-                            player.getInventory().setItem(0, deadItem);
-                            
-                            ItemStack corruptorItem = createCorruptorItem();
-                            player.getInventory().setItem(0, corruptorItem);
-                            player.getInventory().setItem(currentSlot, ItemStack.EMPTY);
+                            int targetSlot = currentSlot + (player.getRandom().nextBoolean() ? 9 : -9);
+                            if (targetSlot < 9) targetSlot = 9 + player.getRandom().nextInt(27);
+                            if (targetSlot >= player.getInventory().getContainerSize()) targetSlot = 9 + player.getRandom().nextInt(27);
+                            ItemStack targetStack = player.getInventory().getItem(targetSlot);
+                            ItemStack corruptorItem = player.getInventory().getItem(currentSlot);
+                            player.getInventory().setItem(targetSlot, corruptorItem);
+                            player.getInventory().setItem(currentSlot, targetStack);
                             player.containerMenu.broadcastChanges();
                         }
                         
