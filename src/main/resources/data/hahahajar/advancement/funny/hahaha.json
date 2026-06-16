@@ -1,0 +1,23 @@
+{
+  "parent": "hahahajar:funny/root",
+  "display": {
+    "icon": {
+      "id": "minecraft:book"
+    },
+    "title": {
+      "text": "HahAhA"
+    },
+    "description": {
+      "text": "you werent meant to laugh"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "tick": {
+      "trigger": "minecraft:tick"
+    }
+  }
+}

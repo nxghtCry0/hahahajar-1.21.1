@@ -1,0 +1,23 @@
+{
+  "parent": "hahahajar:funny/hahaha",
+  "display": {
+    "icon": {
+      "id": "minecraft:paper"
+    },
+    "title": {
+      "text": "laughatme"
+    },
+    "description": {
+      "text": "the tab list laughed, where is your laughter"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}
