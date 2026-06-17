@@ -14,6 +14,11 @@ import net.minecraft.core.BlockPos;
 
 public class FrameLockPortraitEntity extends Monster {
     private int soundTicks = 0;
+    private java.util.UUID targetPlayerUuid = null;
+
+    public void setTargetPlayerUuid(java.util.UUID uuid) {
+        this.targetPlayerUuid = uuid;
+    }
 
     public FrameLockPortraitEntity(EntityType<? extends Monster> entityType, Level level) {
         super(entityType, level);
@@ -31,14 +36,38 @@ public class FrameLockPortraitEntity extends Monster {
     }
 
     @Override
+    public void addAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        if (this.targetPlayerUuid != null) {
+            tag.putUUID("TargetPlayerUuid", this.targetPlayerUuid);
+        }
+    }
+
+    @Override
+    public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        if (tag.hasUUID("TargetPlayerUuid")) {
+            this.targetPlayerUuid = tag.getUUID("TargetPlayerUuid");
+        }
+    }
+
+    @Override
     public void tick() {
         super.tick();
         this.setDeltaMovement(0, 0, 0);
 
         if (!this.level().isClientSide()) {
-            Player player = this.level().getNearestPlayer(this, 100.0);
-            if (player != null && (player.isCreative() || player.isSpectator())) {
-                player = null;
+            Player player = null;
+            if (this.targetPlayerUuid != null) {
+                player = this.level().getPlayerByUUID(this.targetPlayerUuid);
+            }
+            if (player == null || player.isCreative() || player.isSpectator()) {
+                player = this.level().getNearestPlayer(this, 100.0);
+                if (player != null && !player.isCreative() && !player.isSpectator()) {
+                    this.targetPlayerUuid = player.getUUID();
+                } else {
+                    player = null;
+                }
             }
             if (player instanceof ServerPlayer serverPlayer) {
                 Vec3 look = serverPlayer.getViewVector(1.0f);

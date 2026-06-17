@@ -21,6 +21,11 @@ public class LaughEchoEntity extends Monster {
     private boolean chaseMode = false;
     private int stuckTicks = 0;
     private int echoAge = 0;
+    private java.util.UUID targetPlayerUuid = null;
+
+    public void setTargetPlayerUuid(java.util.UUID uuid) {
+        this.targetPlayerUuid = uuid;
+    }
 
     public LaughEchoEntity(EntityType<? extends Monster> entityType, Level level) {
         super(entityType, level);
@@ -78,6 +83,9 @@ public class LaughEchoEntity extends Monster {
         super.addAdditionalSaveData(tag);
         tag.putBoolean("ChaseMode", this.chaseMode);
         tag.putInt("EchoAge", this.echoAge);
+        if (this.targetPlayerUuid != null) {
+            tag.putUUID("TargetPlayerUuid", this.targetPlayerUuid);
+        }
     }
 
     @Override
@@ -88,6 +96,9 @@ public class LaughEchoEntity extends Monster {
         if (this.chaseMode) {
             this.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100.0);
             this.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.45);
+        }
+        if (tag.hasUUID("TargetPlayerUuid")) {
+            this.targetPlayerUuid = tag.getUUID("TargetPlayerUuid");
         }
     }
 
@@ -133,9 +144,17 @@ public class LaughEchoEntity extends Monster {
             }
         }
 
-        Player player = this.level().getNearestPlayer(this, 600.0);
-        if (player != null && (player.isCreative() || player.isSpectator())) {
-            player = null;
+        Player player = null;
+        if (this.targetPlayerUuid != null) {
+            player = this.level().getPlayerByUUID(this.targetPlayerUuid);
+        }
+        if (player == null || player.isCreative() || player.isSpectator()) {
+            player = this.level().getNearestPlayer(this, 600.0);
+            if (player != null && !player.isCreative() && !player.isSpectator()) {
+                this.targetPlayerUuid = player.getUUID();
+            } else {
+                player = null;
+            }
         }
         if (player != null) {
             double distSqr = this.distanceToSqr(player);
@@ -149,6 +168,7 @@ public class LaughEchoEntity extends Monster {
                     BlockPos spawnPos = findSpawnPos((ServerLevel) this.level(), sp.getX() + 10.0, sp.getY(), sp.getZ() + 10.0);
                     L4ughEntity l4ugh = HahahaJar.L4UGH.create(this.level());
                     if (l4ugh != null) {
+                        l4ugh.setTargetPlayerUuid(sp.getUUID());
                         l4ugh.setDisguised(true);
                         l4ugh.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
                         this.level().addFreshEntity(l4ugh);

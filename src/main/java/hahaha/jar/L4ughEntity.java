@@ -29,6 +29,11 @@ public class L4ughEntity extends Monster {
     private int attackTimer = 0;
     private int breathTimer = 0;
     private int flashTimer = 0;
+    private java.util.UUID targetPlayerUuid = null;
+
+    public void setTargetPlayerUuid(java.util.UUID uuid) {
+        this.targetPlayerUuid = uuid;
+    }
 
     public L4ughEntity(EntityType<? extends Monster> entityType, Level level) {
         super(entityType, level);
@@ -74,6 +79,9 @@ public class L4ughEntity extends Monster {
         super.addAdditionalSaveData(tag);
         tag.putBoolean("Disguised", isDisguised());
         tag.putInt("DisguiseType", getDisguiseType());
+        if (this.targetPlayerUuid != null) {
+            tag.putUUID("TargetPlayerUuid", this.targetPlayerUuid);
+        }
     }
 
     @Override
@@ -81,6 +89,9 @@ public class L4ughEntity extends Monster {
         super.readAdditionalSaveData(tag);
         setDisguised(tag.getBoolean("Disguised"));
         setDisguiseType(tag.getInt("DisguiseType"));
+        if (tag.hasUUID("TargetPlayerUuid")) {
+            this.targetPlayerUuid = tag.getUUID("TargetPlayerUuid");
+        }
     }
 
     @Override
@@ -145,9 +156,17 @@ public class L4ughEntity extends Monster {
             }
         }
 
-        Player player = this.level().getNearestPlayer(this, 150.0);
-        if (player != null && (player.isCreative() || player.isSpectator())) {
-            player = null;
+        Player player = null;
+        if (this.targetPlayerUuid != null) {
+            player = this.level().getPlayerByUUID(this.targetPlayerUuid);
+        }
+        if (player == null || player.isCreative() || player.isSpectator()) {
+            player = this.level().getNearestPlayer(this, 150.0);
+            if (player != null && !player.isCreative() && !player.isSpectator()) {
+                this.targetPlayerUuid = player.getUUID();
+            } else {
+                player = null;
+            }
         }
         if (player != null) {
             double distSqr = this.distanceToSqr(player);

@@ -55,7 +55,7 @@ public class HahahaJarEventHandler {
     private static final List<ChaseTimer> CHASE_TIMERS = new ArrayList<>();
     private static final Map<UUID, Float> THREAT_LEVELS = new HashMap<>();
     private static final Map<UUID, Float> VILLAGE_MULTIPLIERS = new HashMap<>();
-    private static int exhaustionCooldown = 0;
+    private static final Map<UUID, Integer> EXHAUSTION_COOLDOWNS = new HashMap<>();
     public static boolean obsMode = false;
     private static final Map<UUID, Integer> CORRUPTOR_SLOTS = new HashMap<>();
     private static final Map<UUID, Integer> CORRUPTOR_TICKS = new HashMap<>();
@@ -392,6 +392,7 @@ public class HahahaJarEventHandler {
         BlockPos spawnPos = LaughEchoEntity.findSpawnPos(world, spawnX, player.getY(), spawnZ);
         LaughEchoEntity echo = HahahaJar.LAUGH_ECHO.create(world);
         if (echo != null) {
+            echo.setTargetPlayerUuid(player.getUUID());
             echo.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, player.getRandom().nextFloat() * 360.0f, 0.0f);
             if (isChase) {
                 echo.setChaseMode(true);
@@ -407,6 +408,7 @@ public class HahahaJarEventHandler {
         BlockPos spawnPos = LaughEchoEntity.findSpawnPos(world, spawnPosVec.x, player.getY(), spawnPosVec.z);
         LaughEchoEntity phantom = HahahaJar.LAUGH_ECHO.create(world);
         if (phantom != null) {
+            phantom.setTargetPlayerUuid(player.getUUID());
             phantom.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, player.getYRot() + 180.0f, 0.0f);
             phantom.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1.0);
             phantom.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).setBaseValue(0.0);
@@ -423,6 +425,7 @@ public class HahahaJarEventHandler {
         BlockPos spawnPos = LaughEchoEntity.findSpawnPos(player.serverLevel(), spawnVec.x, player.getY(), spawnVec.z);
         ThreadBleederEntity tb = HahahaJar.THREAD_BLEEDER.create(player.serverLevel());
         if (tb != null) {
+            tb.setTargetPlayerUuid(player.getUUID());
             tb.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, player.getRandom().nextFloat() * 360.0f, 0.0f);
             player.serverLevel().addFreshEntity(tb);
         }
@@ -431,6 +434,7 @@ public class HahahaJarEventHandler {
     public static void triggerPortrait(ServerPlayer player) {
         FrameLockPortraitEntity flp = HahahaJar.FRAME_LOCK_PORTRAIT.create(player.serverLevel());
         if (flp != null) {
+            flp.setTargetPlayerUuid(player.getUUID());
             flp.teleportBehind(player);
             player.serverLevel().addFreshEntity(flp);
         }
@@ -907,6 +911,7 @@ public class HahahaJarEventHandler {
                             if (!spawnBlock.is(Blocks.SAND) && !spawnBlock.is(Blocks.RED_SAND) && !spawnBlock.is(net.minecraft.tags.BlockTags.SAND)) {
                                 L4ughEntity l4ugh = HahahaJar.L4UGH.create(player.serverLevel());
                                 if (l4ugh != null) {
+                                    l4ugh.setTargetPlayerUuid(player.getUUID());
                                     l4ugh.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
                                     player.serverLevel().addFreshEntity(l4ugh);
                                     break;
@@ -1078,76 +1083,80 @@ public class HahahaJarEventHandler {
             }
 
             if (isFreed()) {
-                if (exhaustionCooldown > 0) {
-                    exhaustionCooldown--;
-                } else {
-                    int day = (int) (server.overworld().getDayTime() / 24000L);
-                    float baseIncrement = 0.05f;
-                    baseIncrement *= Math.min(1.5f, 1.0f + day * 0.05f);
-                    if (server.overworld().isNight()) {
-                        baseIncrement *= 2.0f;
-                    }
+                int day = (int) (server.overworld().getDayTime() / 24000L);
+                float baseIncrement = 0.05f;
+                baseIncrement *= Math.min(1.5f, 1.0f + day * 0.05f);
+                if (server.overworld().isNight()) {
+                    baseIncrement *= 2.0f;
+                }
 
-                    if (serverTicks % 100 == 0) {
-                        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                            if (player.isCreative() || player.isSpectator()) {
-                                continue;
-                            }
-                            BlockPos pos = player.blockPosition();
-                            BlockPos villagePos = player.serverLevel().findNearestMapStructure(
-                                net.minecraft.tags.StructureTags.VILLAGE,
-                                pos,
-                                100,
-                                false
-                            );
-                            if (villagePos != null) {
-                                double dist = Math.sqrt(pos.distSqr(villagePos));
-                                float mult = (float) Math.max(0.5f, 2.0f - (dist / 333.0f));
-                                VILLAGE_MULTIPLIERS.put(player.getUUID(), mult);
-                            } else {
-                                VILLAGE_MULTIPLIERS.put(player.getUUID(), 0.5f);
-                            }
-                        }
-                    }
-
+                if (serverTicks % 100 == 0) {
                     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                         if (player.isCreative() || player.isSpectator()) {
-                            THREAT_LEVELS.put(player.getUUID(), 0.0f);
-                            ServerPlayNetworking.send(player, new ThreatSyncPayload(0.0f));
                             continue;
                         }
-                        float increment = baseIncrement;
-                        if (player.getEyeY() < 40.0) {
-                            increment *= 1.5f;
-                        }
-                        
-                        java.util.List<net.minecraft.world.entity.LivingEntity> passives = player.serverLevel().getEntitiesOfClass(
-                            net.minecraft.world.entity.LivingEntity.class,
-                            player.getBoundingBox().inflate(33.0),
-                            entity -> entity instanceof net.minecraft.world.entity.animal.Animal || entity instanceof net.minecraft.world.entity.npc.Villager
+                        BlockPos pos = player.blockPosition();
+                        BlockPos villagePos = player.serverLevel().findNearestMapStructure(
+                            net.minecraft.tags.StructureTags.VILLAGE,
+                            pos,
+                            100,
+                            false
                         );
-                        if (passives.isEmpty()) {
-                            increment *= 1.3f;
+                        if (villagePos != null) {
+                            double dist = Math.sqrt(pos.distSqr(villagePos));
+                            float mult = (float) Math.max(0.5f, 2.0f - (dist / 333.0f));
+                            VILLAGE_MULTIPLIERS.put(player.getUUID(), mult);
+                        } else {
+                            VILLAGE_MULTIPLIERS.put(player.getUUID(), 0.5f);
                         }
-                        
-                        UUID uuid = player.getUUID();
-                        float villageMult = VILLAGE_MULTIPLIERS.getOrDefault(uuid, 1.0f);
-                        float altitudeMult = (float) Math.max(0.5f, player.getY() / 64.0);
-                        increment *= villageMult * altitudeMult;
-
-                        float currentThreat = THREAT_LEVELS.getOrDefault(uuid, 0.0f) + increment;
-                        THREAT_LEVELS.put(uuid, currentThreat);
-                        
-                        if (currentThreat >= 100.0f) {
-                            if (player.getRandom().nextFloat() < 0.0025f) {
-                                triggerRandomEvent(player);
-                                currentThreat = 0.0f;
-                                THREAT_LEVELS.put(uuid, 0.0f);
-                                exhaustionCooldown = 3000;
-                            }
-                        }
-                        ServerPlayNetworking.send(player, new ThreatSyncPayload(currentThreat));
                     }
+                }
+
+                for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (player.isCreative() || player.isSpectator()) {
+                        THREAT_LEVELS.put(player.getUUID(), 0.0f);
+                        ServerPlayNetworking.send(player, new ThreatSyncPayload(0.0f));
+                        continue;
+                    }
+                    UUID uuid = player.getUUID();
+                    int playerCooldown = EXHAUSTION_COOLDOWNS.getOrDefault(uuid, 0);
+                    if (playerCooldown > 0) {
+                        EXHAUSTION_COOLDOWNS.put(uuid, playerCooldown - 1);
+                        float currentThreat = THREAT_LEVELS.getOrDefault(uuid, 0.0f);
+                        ServerPlayNetworking.send(player, new ThreatSyncPayload(currentThreat));
+                        continue;
+                    }
+
+                    float increment = baseIncrement;
+                    if (player.getEyeY() < 40.0) {
+                        increment *= 1.5f;
+                    }
+                    
+                    java.util.List<net.minecraft.world.entity.LivingEntity> passives = player.serverLevel().getEntitiesOfClass(
+                        net.minecraft.world.entity.LivingEntity.class,
+                        player.getBoundingBox().inflate(33.0),
+                        entity -> entity instanceof net.minecraft.world.entity.animal.Animal || entity instanceof net.minecraft.world.entity.npc.Villager
+                    );
+                    if (passives.isEmpty()) {
+                        increment *= 1.3f;
+                    }
+                    
+                    float villageMult = VILLAGE_MULTIPLIERS.getOrDefault(uuid, 1.0f);
+                    float altitudeMult = (float) Math.max(0.5f, player.getY() / 64.0);
+                    increment *= villageMult * altitudeMult;
+
+                    float currentThreat = THREAT_LEVELS.getOrDefault(uuid, 0.0f) + increment;
+                    THREAT_LEVELS.put(uuid, currentThreat);
+                    
+                    if (currentThreat >= 100.0f) {
+                        if (player.getRandom().nextFloat() < 0.0025f) {
+                            triggerRandomEvent(player);
+                            currentThreat = 0.0f;
+                            THREAT_LEVELS.put(uuid, 0.0f);
+                            EXHAUSTION_COOLDOWNS.put(uuid, 3000);
+                        }
+                    }
+                    ServerPlayNetworking.send(player, new ThreatSyncPayload(currentThreat));
                 }
             }
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {

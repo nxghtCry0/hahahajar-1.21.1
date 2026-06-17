@@ -15,6 +15,11 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
 public class ThreadBleederEntity extends Monster {
     private int lagTicks = 0;
+    private java.util.UUID targetPlayerUuid = null;
+
+    public void setTargetPlayerUuid(java.util.UUID uuid) {
+        this.targetPlayerUuid = uuid;
+    }
 
     public ThreadBleederEntity(EntityType<? extends Monster> entityType, Level level) {
         super(entityType, level);
@@ -32,14 +37,38 @@ public class ThreadBleederEntity extends Monster {
     }
 
     @Override
+    public void addAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        if (this.targetPlayerUuid != null) {
+            tag.putUUID("TargetPlayerUuid", this.targetPlayerUuid);
+        }
+    }
+
+    @Override
+    public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        if (tag.hasUUID("TargetPlayerUuid")) {
+            this.targetPlayerUuid = tag.getUUID("TargetPlayerUuid");
+        }
+    }
+
+    @Override
     public void tick() {
         super.tick();
         this.setDeltaMovement(0, 0, 0);
 
         if (!this.level().isClientSide()) {
-            Player player = this.level().getNearestPlayer(this, 100.0);
-            if (player != null && (player.isCreative() || player.isSpectator())) {
-                player = null;
+            Player player = null;
+            if (this.targetPlayerUuid != null) {
+                player = this.level().getPlayerByUUID(this.targetPlayerUuid);
+            }
+            if (player == null || player.isCreative() || player.isSpectator()) {
+                player = this.level().getNearestPlayer(this, 100.0);
+                if (player != null && !player.isCreative() && !player.isSpectator()) {
+                    this.targetPlayerUuid = player.getUUID();
+                } else {
+                    player = null;
+                }
             }
             if (player instanceof ServerPlayer serverPlayer) {
                 double dist = this.distanceTo(serverPlayer);
