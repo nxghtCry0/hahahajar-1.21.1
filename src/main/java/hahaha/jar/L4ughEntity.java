@@ -96,7 +96,7 @@ public class L4ughEntity extends Monster {
 
     @Override
     public float maxUpStep() {
-        return 3.0f;
+        return 5.0f;
     }
 
     @Override

@@ -1345,6 +1345,14 @@ public class HahahaJarEventHandler {
                         return 1;
                     })
                 )
+                .then(Commands.literal("threat")
+                    .executes(context -> {
+                        ServerPlayer player = context.getSource().getPlayerOrException();
+                        float threat = THREAT_LEVELS.getOrDefault(player.getUUID(), 0.0f);
+                        context.getSource().sendSuccess(() -> Component.literal("Your threat level: " + String.format("%.2f", threat)).withStyle(ChatFormatting.RED), false);
+                        return 1;
+                    })
+                )
                 .then(Commands.literal("event")
                     .then(Commands.literal("flicker")
                         .executes(context -> {

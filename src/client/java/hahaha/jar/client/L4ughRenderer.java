@@ -17,6 +17,8 @@ import net.minecraft.client.renderer.entity.VillagerRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.renderer.MultiBufferSource;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import org.joml.Matrix4f;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.Pig;
@@ -30,6 +32,7 @@ import net.minecraft.world.entity.EntityType;
 
 public class L4ughRenderer extends HumanoidMobRenderer<L4ughEntity, HumanoidModel<L4ughEntity>> {
     private static final ResourceLocation WHITE_TEXTURE = ResourceLocation.parse("hahahajar:textures/entity/white.png");
+    private static final ResourceLocation L4UGH_TEXTURE = ResourceLocation.parse("hahahajar:textures/entity/l4ugh.png");
 
     private final CowRenderer cowRenderer;
     private final SheepRenderer sheepRenderer;
@@ -66,7 +69,15 @@ public class L4ughRenderer extends HumanoidMobRenderer<L4ughEntity, HumanoidMode
 
     @Override
     public ResourceLocation getTextureLocation(L4ughEntity entity) {
-        return WHITE_TEXTURE;
+        return L4UGH_TEXTURE;
+    }
+
+    @Override
+    protected net.minecraft.client.renderer.RenderType getRenderType(L4ughEntity entity, boolean invisible, boolean translucent, boolean glowing) {
+        if (!entity.isDisguised()) {
+            return net.minecraft.client.renderer.RenderType.entityCutoutNoCull(getTextureLocation(entity));
+        }
+        return super.getRenderType(entity, invisible, translucent, glowing);
     }
 
     @Override
@@ -137,8 +148,32 @@ public class L4ughRenderer extends HumanoidMobRenderer<L4ughEntity, HumanoidMode
                 villagerRenderer.render(dummyVillager, entityYaw, partialTicks, poseStack, buffer, packedLight);
             }
         } else {
-            super.render(entity, entityYaw, partialTicks, poseStack, buffer, packedLight);
+            poseStack.pushPose();
+            float cameraYaw = this.entityRenderDispatcher.camera.getYRot();
+            poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-cameraYaw + 180.0f));
+            VertexConsumer consumer = buffer.getBuffer(net.minecraft.client.renderer.RenderType.entityCutoutNoCull(L4UGH_TEXTURE));
+            Matrix4f pose = poseStack.last().pose();
+            float width = 3.17f;
+            float height = 5.0f;
+            float minX = -width / 2.0f;
+            float maxX = width / 2.0f;
+            float minY = 0.0f;
+            float maxY = height;
+            addVertex(pose, consumer, minX, minY, 0.0f, 0.0f, 1.0f, packedLight);
+            addVertex(pose, consumer, maxX, minY, 0.0f, 1.0f, 1.0f, packedLight);
+            addVertex(pose, consumer, maxX, maxY, 0.0f, 1.0f, 0.0f, packedLight);
+            addVertex(pose, consumer, minX, maxY, 0.0f, 0.0f, 0.0f, packedLight);
+            poseStack.popPose();
         }
+    }
+
+    private void addVertex(Matrix4f pose, VertexConsumer consumer, float x, float y, float z, float u, float v, int light) {
+        consumer.addVertex(pose, x, y, z)
+                .setColor(255, 255, 255, 255)
+                .setUv(u, v)
+                .setOverlay(net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY)
+                .setLight(light)
+                .setNormal(0.0f, 1.0f, 0.0f);
     }
 
     private void updateDummy(net.minecraft.world.entity.Mob dummy, L4ughEntity parent) {

@@ -155,6 +155,41 @@ public class HahahaJar implements ModInitializer {
 			if (runBuildDir.exists() || runBuildDir.mkdirs()) {
 				javax.imageio.ImageIO.write(javax.imageio.ImageIO.read(file4), "png", new java.io.File(runBuildDir, "bleeding_heart.png"));
 			}
+
+			java.io.File file5 = new java.io.File(assetsSrc, "l4ugh.png");
+			if (!file5.exists()) {
+				java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+				java.awt.Graphics2D graphics = img.createGraphics();
+				graphics.setBackground(new java.awt.Color(0, 0, 0, 0));
+				graphics.clearRect(0, 0, 64, 64);
+				img.setRGB(9, 10, 0xFFFF0000);
+				img.setRGB(10, 10, 0xFFFF0000);
+				img.setRGB(13, 10, 0xFFFF0000);
+				img.setRGB(14, 10, 0xFFFF0000);
+				img.setRGB(8, 13, 0xFFFF0000);
+				img.setRGB(9, 14, 0xFFFF0000);
+				img.setRGB(10, 14, 0xFFFF0000);
+				img.setRGB(11, 14, 0xFFFF0000);
+				img.setRGB(12, 14, 0xFFFF0000);
+				img.setRGB(13, 14, 0xFFFF0000);
+				img.setRGB(14, 14, 0xFFFF0000);
+				img.setRGB(15, 13, 0xFFFF0000);
+				for (int y = 20; y < 32; y++) {
+					img.setRGB(23, y, 0xFFFF0000);
+					img.setRGB(24, y, 0xFFFF0000);
+				}
+				for (int y = 22; y <= 30; y += 3) {
+					for (int x = 21; x <= 26; x++) {
+						img.setRGB(x, y, 0xFFFF0000);
+					}
+				}
+				graphics.dispose();
+				javax.imageio.ImageIO.write(img, "png", file5);
+			}
+			java.nio.file.Files.copy(file5.toPath(), new java.io.File(buildDir, "l4ugh.png").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+			if (runBuildDir.exists() || runBuildDir.mkdirs()) {
+				java.nio.file.Files.copy(file5.toPath(), new java.io.File(runBuildDir, "l4ugh.png").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+			}
 		} catch (Exception e) {
 		}
 
