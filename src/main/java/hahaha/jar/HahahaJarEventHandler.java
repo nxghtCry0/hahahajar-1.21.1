@@ -54,6 +54,7 @@ public class HahahaJarEventHandler {
     private static final List<LookStalker> LOOK_STALKERS = new ArrayList<>();
     private static final List<ChaseTimer> CHASE_TIMERS = new ArrayList<>();
     private static final Map<UUID, Float> THREAT_LEVELS = new HashMap<>();
+    private static final Map<UUID, Float> VILLAGE_MULTIPLIERS = new HashMap<>();
     private static int exhaustionCooldown = 0;
     public static boolean obsMode = false;
     private static final Map<UUID, Integer> CORRUPTOR_SLOTS = new HashMap<>();
@@ -304,6 +305,53 @@ public class HahahaJarEventHandler {
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.AMBIENT, 1.0f, 0.8f);
     }
 
+    public static void triggerTooltipEvent(ServerPlayer player) {
+        ServerPlayNetworking.send(player, new TooltipEventPayload(1200));
+    }
+
+    public static void triggerFogEvent(ServerPlayer player) {
+        ServerPlayNetworking.send(player, new FogEventPayload(1200));
+    }
+
+    public static void triggerHole(ServerPlayer player) {
+        ServerLevel world = player.serverLevel();
+        double angle = player.getRandom().nextDouble() * Math.PI * 2;
+        double dist = 15.0 + player.getRandom().nextDouble() * 15.0;
+        int targetX = (int) (player.getX() + Math.cos(angle) * dist);
+        int targetZ = (int) (player.getZ() + Math.sin(angle) * dist);
+        BlockPos surfacePos = world.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, new BlockPos(targetX, 0, targetZ));
+        int startY = surfacePos.getY();
+        int minBedrockY = world.getMinBuildHeight();
+        if (startY > minBedrockY + 5) {
+            for (int x = 0; x < 2; x++) {
+                for (int z = 0; z < 2; z++) {
+                    for (int y = startY; y > minBedrockY; y--) {
+                        BlockPos pos = new BlockPos(targetX + x, y, targetZ + z);
+                        if (y == minBedrockY + 1) {
+                            BlockPos below = pos.below();
+                            if (world.getBlockState(below).getBlock() != Blocks.BEDROCK) {
+                                world.setBlock(below, Blocks.BEDROCK.defaultBlockState(), 3);
+                            }
+                        }
+                        world.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+                    }
+                }
+            }
+            for (int x = -1; x <= 2; x++) {
+                for (int z = -1; z <= 2; z++) {
+                    if ((x == 0 || x == 1) && (z == 0 || z == 1)) {
+                        continue;
+                    }
+                    BlockPos torchPos = new BlockPos(targetX + x, startY + 1, targetZ + z);
+                    if (Blocks.REDSTONE_TORCH.defaultBlockState().canSurvive(world, torchPos)) {
+                        world.setBlock(torchPos, Blocks.REDSTONE_TORCH.defaultBlockState(), 3);
+                    }
+                }
+            }
+            world.playSound(null, targetX + 0.5, startY + 0.5, targetZ + 0.5, SoundEvents.AMBIENT_CAVE, SoundSource.AMBIENT, 1.0f, 0.5f);
+        }
+    }
+
     public static void triggerLaughAtMe(ServerPlayer player, net.minecraft.server.MinecraftServer server) {
         if (!player.getTags().contains("hahahajar_laughatme")) {
             player.addTag("hahahajar_laughatme");
@@ -422,7 +470,7 @@ public class HahahaJarEventHandler {
     }
 
     private static void triggerRandomEvent(ServerPlayer player) {
-        int event = player.getRandom().nextInt(13);
+        int event = player.getRandom().nextInt(16);
         if (event == 0) {
             triggerFlicker(player);
         } else if (event == 1) {
@@ -447,8 +495,14 @@ public class HahahaJarEventHandler {
             triggerThreadBleeder(player);
         } else if (event == 11) {
             triggerPortrait(player);
-        } else {
+        } else if (event == 12) {
             triggerCorruptor(player);
+        } else if (event == 13) {
+            triggerTooltipEvent(player);
+        } else if (event == 14) {
+            triggerFogEvent(player);
+        } else {
+            triggerHole(player);
         }
 
         if (player.getRandom().nextInt(3) == 0) {
@@ -459,6 +513,11 @@ public class HahahaJarEventHandler {
     public static void register() {
         checkObsMode();
         loadTrackedBlocks();
+        try {
+            for (java.lang.reflect.Method method : Class.forName("net.minecraft.client.gui.components.LogoRenderer").getDeclaredMethods()) {
+                System.out.println("LOGORENDERER METHOD: " + method.getName() + " RETURNS: " + method.getReturnType().getName() + " PARAMS: " + java.util.Arrays.toString(method.getParameterTypes()));
+            }
+        } catch (Exception e) {}
 
         ServerPlayNetworking.registerGlobalReceiver(RegistryCorruptorWakeupPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
@@ -551,7 +610,7 @@ public class HahahaJarEventHandler {
             BlockPos pos = hitResult.getBlockPos();
             net.minecraft.world.level.block.state.BlockState state = world.getBlockState(pos);
             if (state.getBlock() instanceof net.minecraft.world.level.block.BedBlock) {
-                if (isFreed()) {
+                if (player.getTags().contains("hahahajar_laughatme")) {
                     player.sendSystemMessage(Component.literal("[hahaha.jar] Cannot rest now, it is observing.").withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
                     return net.minecraft.world.InteractionResult.FAIL;
                 }
@@ -736,7 +795,7 @@ public class HahahaJarEventHandler {
                 timer.ticks--;
                 ServerPlayer player = server.getPlayerList().getPlayer(timer.playerUuid);
                 if (player != null && timer.ticks > 0) {
-                    if (player.isRemoved() || !player.isAlive()) {
+                    if (player.isRemoved() || !player.isAlive() || player.isCreative() || player.isSpectator()) {
                         ServerPlayNetworking.send(player, new StopMusicPayload());
                         chaseIterator.remove();
                         continue;
@@ -763,13 +822,21 @@ public class HahahaJarEventHandler {
                 } else {
                     if (player != null) {
                         ServerPlayNetworking.send(player, new StopMusicPayload());
-                        player.kill();
+                        player.sendSystemMessage(Component.literal("you survived.").withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
+                        for (LaughEchoEntity echo : player.serverLevel().getEntitiesOfClass(LaughEchoEntity.class, player.getBoundingBox().inflate(300.0))) {
+                            if (echo.isChaseMode()) {
+                                echo.discard();
+                            }
+                        }
                     }
                     chaseIterator.remove();
                 }
             }
 
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (player.isCreative() || player.isSpectator()) {
+                    continue;
+                }
                 UUID uuid = player.getUUID();
                 int playtime = PLAYTIME_TIMERS.getOrDefault(uuid, 0) + 1;
                 PLAYTIME_TIMERS.put(uuid, playtime);
@@ -801,6 +868,9 @@ public class HahahaJarEventHandler {
             if (isFreed() && serverTicks % 1200 == 0 && server.overworld().isNight()) {
                 int day = (int) (server.overworld().getDayTime() / 24000L);
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (player.isCreative() || player.isSpectator()) {
+                        continue;
+                    }
                     java.util.List<LaughEchoEntity> echoes = player.serverLevel().getEntitiesOfClass(LaughEchoEntity.class, player.getBoundingBox().inflate(200.0));
                     if (echoes.isEmpty()) {
                         int chance = Math.max(1, 3 - day / 3);
@@ -814,6 +884,9 @@ public class HahahaJarEventHandler {
             if (isFreed() && serverTicks % 1000 == 0 && server.overworld().isNight()) {
                 boolean l4ughExists = false;
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (player.isCreative() || player.isSpectator()) {
+                        continue;
+                    }
                     if (!player.serverLevel().getEntitiesOfClass(L4ughEntity.class, player.getBoundingBox().inflate(300.0)).isEmpty()) {
                         l4ughExists = true;
                         break;
@@ -821,6 +894,9 @@ public class HahahaJarEventHandler {
                 }
                 if (!l4ughExists) {
                     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                        if (player.isCreative() || player.isSpectator()) {
+                            continue;
+                        }
                         if (player.getRandom().nextFloat() < 0.3f) {
                             double angle = player.getRandom().nextDouble() * Math.PI * 2;
                             double dist = 40.0 + player.getRandom().nextDouble() * 20.0;
@@ -843,6 +919,9 @@ public class HahahaJarEventHandler {
 
             if (isFreed() && serverTicks % 400 == 0) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (player.isCreative() || player.isSpectator()) {
+                        continue;
+                    }
                     BlockPos spawn = player.getRespawnPosition();
                     if (spawn == null) {
                         spawn = player.serverLevel().getSharedSpawnPos();
@@ -945,6 +1024,9 @@ public class HahahaJarEventHandler {
 
             if (isFreed() && serverTicks % 20 == 0) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (player.isCreative() || player.isSpectator()) {
+                        continue;
+                    }
                     BlockPos playerPos = player.blockPosition();
                     Vec3 look = player.getViewVector(1.0f);
                     for (BlockPos pos : BlockPos.betweenClosed(playerPos.offset(-7, -3, -7), playerPos.offset(7, 3, 7))) {
@@ -1005,7 +1087,35 @@ public class HahahaJarEventHandler {
                     if (server.overworld().isNight()) {
                         baseIncrement *= 2.0f;
                     }
+
+                    if (serverTicks % 100 == 0) {
+                        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                            if (player.isCreative() || player.isSpectator()) {
+                                continue;
+                            }
+                            BlockPos pos = player.blockPosition();
+                            BlockPos villagePos = player.serverLevel().findNearestMapStructure(
+                                net.minecraft.tags.StructureTags.VILLAGE,
+                                pos,
+                                100,
+                                false
+                            );
+                            if (villagePos != null) {
+                                double dist = Math.sqrt(pos.distSqr(villagePos));
+                                float mult = (float) Math.max(0.5f, 2.0f - (dist / 333.0f));
+                                VILLAGE_MULTIPLIERS.put(player.getUUID(), mult);
+                            } else {
+                                VILLAGE_MULTIPLIERS.put(player.getUUID(), 0.5f);
+                            }
+                        }
+                    }
+
                     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                        if (player.isCreative() || player.isSpectator()) {
+                            THREAT_LEVELS.put(player.getUUID(), 0.0f);
+                            ServerPlayNetworking.send(player, new ThreatSyncPayload(0.0f));
+                            continue;
+                        }
                         float increment = baseIncrement;
                         if (player.getEyeY() < 40.0) {
                             increment *= 1.5f;
@@ -1021,6 +1131,10 @@ public class HahahaJarEventHandler {
                         }
                         
                         UUID uuid = player.getUUID();
+                        float villageMult = VILLAGE_MULTIPLIERS.getOrDefault(uuid, 1.0f);
+                        float altitudeMult = (float) Math.max(0.5f, player.getY() / 64.0);
+                        increment *= villageMult * altitudeMult;
+
                         float currentThreat = THREAT_LEVELS.getOrDefault(uuid, 0.0f) + increment;
                         THREAT_LEVELS.put(uuid, currentThreat);
                         
@@ -1356,6 +1470,30 @@ public class HahahaJarEventHandler {
                             ServerPlayer player = context.getSource().getPlayerOrException();
                             triggerCorruptor(player);
                             context.getSource().sendSuccess(() -> Component.literal("Triggered corruptor event").withStyle(ChatFormatting.GREEN), false);
+                            return 1;
+                        })
+                    )
+                    .then(Commands.literal("tooltip")
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            triggerTooltipEvent(player);
+                            context.getSource().sendSuccess(() -> Component.literal("Triggered tooltip event").withStyle(ChatFormatting.GREEN), false);
+                            return 1;
+                        })
+                    )
+                    .then(Commands.literal("fog")
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            triggerFogEvent(player);
+                            context.getSource().sendSuccess(() -> Component.literal("Triggered fog event").withStyle(ChatFormatting.GREEN), false);
+                            return 1;
+                        })
+                    )
+                    .then(Commands.literal("hole")
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            triggerHole(player);
+                            context.getSource().sendSuccess(() -> Component.literal("Triggered hole structure event").withStyle(ChatFormatting.GREEN), false);
                             return 1;
                         })
                     )

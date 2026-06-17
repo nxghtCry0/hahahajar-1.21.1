@@ -9,6 +9,10 @@ import net.minecraft.client.renderer.entity.CowRenderer;
 import net.minecraft.client.renderer.entity.SheepRenderer;
 import net.minecraft.client.renderer.entity.PigRenderer;
 import net.minecraft.client.renderer.entity.ChickenRenderer;
+import net.minecraft.client.renderer.entity.FoxRenderer;
+import net.minecraft.client.renderer.entity.WolfRenderer;
+import net.minecraft.client.renderer.entity.CatRenderer;
+import net.minecraft.client.renderer.entity.RabbitRenderer;
 import net.minecraft.client.renderer.entity.VillagerRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -17,6 +21,10 @@ import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.animal.Chicken;
+import net.minecraft.world.entity.animal.Fox;
+import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.entity.animal.Cat;
+import net.minecraft.world.entity.animal.Rabbit;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.EntityType;
 
@@ -27,12 +35,20 @@ public class L4ughRenderer extends HumanoidMobRenderer<L4ughEntity, HumanoidMode
     private final SheepRenderer sheepRenderer;
     private final PigRenderer pigRenderer;
     private final ChickenRenderer chickenRenderer;
+    private final FoxRenderer foxRenderer;
+    private final WolfRenderer wolfRenderer;
+    private final CatRenderer catRenderer;
+    private final RabbitRenderer rabbitRenderer;
     private final VillagerRenderer villagerRenderer;
 
     private Cow dummyCow;
     private Sheep dummySheep;
     private Pig dummyPig;
     private Chicken dummyChicken;
+    private Fox dummyFox;
+    private Wolf dummyWolf;
+    private Cat dummyCat;
+    private Rabbit dummyRabbit;
     private Villager dummyVillager;
 
     public L4ughRenderer(EntityRendererProvider.Context context) {
@@ -41,6 +57,10 @@ public class L4ughRenderer extends HumanoidMobRenderer<L4ughEntity, HumanoidMode
         this.sheepRenderer = new SheepRenderer(context);
         this.pigRenderer = new PigRenderer(context);
         this.chickenRenderer = new ChickenRenderer(context);
+        this.foxRenderer = new FoxRenderer(context);
+        this.wolfRenderer = new WolfRenderer(context);
+        this.catRenderer = new CatRenderer(context);
+        this.rabbitRenderer = new RabbitRenderer(context);
         this.villagerRenderer = new VillagerRenderer(context);
     }
 
@@ -85,6 +105,30 @@ public class L4ughRenderer extends HumanoidMobRenderer<L4ughEntity, HumanoidMode
                 }
                 updateDummy(dummyChicken, entity);
                 chickenRenderer.render(dummyChicken, entityYaw, partialTicks, poseStack, buffer, packedLight);
+            } else if (type == 4) {
+                if (dummyFox == null) {
+                    dummyFox = new Fox(EntityType.FOX, level);
+                }
+                updateDummy(dummyFox, entity);
+                foxRenderer.render(dummyFox, entityYaw, partialTicks, poseStack, buffer, packedLight);
+            } else if (type == 5) {
+                if (dummyWolf == null) {
+                    dummyWolf = new Wolf(EntityType.WOLF, level);
+                }
+                updateDummy(dummyWolf, entity);
+                wolfRenderer.render(dummyWolf, entityYaw, partialTicks, poseStack, buffer, packedLight);
+            } else if (type == 6) {
+                if (dummyCat == null) {
+                    dummyCat = new Cat(EntityType.CAT, level);
+                }
+                updateDummy(dummyCat, entity);
+                catRenderer.render(dummyCat, entityYaw, partialTicks, poseStack, buffer, packedLight);
+            } else if (type == 7) {
+                if (dummyRabbit == null) {
+                    dummyRabbit = new Rabbit(EntityType.RABBIT, level);
+                }
+                updateDummy(dummyRabbit, entity);
+                rabbitRenderer.render(dummyRabbit, entityYaw, partialTicks, poseStack, buffer, packedLight);
             } else {
                 if (dummyVillager == null) {
                     dummyVillager = new Villager(EntityType.VILLAGER, level);

@@ -14,11 +14,13 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerPlayer;
 
 public class LaughEchoEntity extends Monster {
     private BlockPos lastLightPos = null;
     private boolean chaseMode = false;
     private int stuckTicks = 0;
+    private int echoAge = 0;
 
     public LaughEchoEntity(EntityType<? extends Monster> entityType, Level level) {
         super(entityType, level);
@@ -37,6 +39,10 @@ public class LaughEchoEntity extends Monster {
             this.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100.0);
             this.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.45);
         }
+    }
+
+    public boolean isChaseMode() {
+        return this.chaseMode;
     }
 
     @Override
@@ -71,12 +77,14 @@ public class LaughEchoEntity extends Monster {
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putBoolean("ChaseMode", this.chaseMode);
+        tag.putInt("EchoAge", this.echoAge);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         this.chaseMode = tag.getBoolean("ChaseMode");
+        this.echoAge = tag.getInt("EchoAge");
         if (this.chaseMode) {
             this.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100.0);
             this.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.45);
@@ -86,6 +94,14 @@ public class LaughEchoEntity extends Monster {
     @Override
     public void tick() {
         super.tick();
+        
+        if (!this.level().isClientSide()) {
+            this.echoAge++;
+            if (!this.chaseMode && this.echoAge >= 6000) {
+                this.discard();
+                return;
+            }
+        }
         
         if (this.getTags().contains("hahahajar_phantom")) {
             this.setDeltaMovement(0, this.getDeltaMovement().y, 0);
@@ -118,12 +134,25 @@ public class LaughEchoEntity extends Monster {
         }
 
         Player player = this.level().getNearestPlayer(this, 600.0);
+        if (player != null && (player.isCreative() || player.isSpectator())) {
+            player = null;
+        }
         if (player != null) {
             double distSqr = this.distanceToSqr(player);
             
             if (this.chaseMode) {
                 if (distSqr < 2.5) {
-                    HahahaJarEventHandler.endChase((net.minecraft.server.level.ServerPlayer) player);
+                    ServerPlayer sp = (ServerPlayer) player;
+                    HahahaJarEventHandler.endChase(sp);
+                    sp.sendSystemMessage(net.minecraft.network.chat.Component.literal("you lost").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.BOLD));
+                    sp.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(net.minecraft.network.chat.Component.literal("YOU LOST").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.BOLD)));
+                    BlockPos spawnPos = findSpawnPos((ServerLevel) this.level(), sp.getX() + 10.0, sp.getY(), sp.getZ() + 10.0);
+                    L4ughEntity l4ugh = HahahaJar.L4UGH.create(this.level());
+                    if (l4ugh != null) {
+                        l4ugh.setDisguised(true);
+                        l4ugh.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
+                        this.level().addFreshEntity(l4ugh);
+                    }
                     player.kill();
                     this.discard();
                     return;
@@ -155,9 +184,8 @@ public class LaughEchoEntity extends Monster {
                     return;
                 }
 
-                double speed = 0.2 + Math.min(0.9, (double) this.tickCount / 600.0);
-                double navSpeed = 0.2 + Math.min(0.7, (double) this.tickCount / 600.0);
-                this.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(navSpeed);
+                double speed = 0.15;
+                this.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.15);
 
                 if (dist > 10.0) {
                     double vx = (dx / dist) * speed;

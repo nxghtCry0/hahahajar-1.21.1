@@ -37,6 +37,9 @@ public class FrameLockPortraitEntity extends Monster {
 
         if (!this.level().isClientSide()) {
             Player player = this.level().getNearestPlayer(this, 100.0);
+            if (player != null && (player.isCreative() || player.isSpectator())) {
+                player = null;
+            }
             if (player instanceof ServerPlayer serverPlayer) {
                 Vec3 look = serverPlayer.getViewVector(1.0f);
                 Vec3 toEntity = this.position().subtract(serverPlayer.position()).normalize();

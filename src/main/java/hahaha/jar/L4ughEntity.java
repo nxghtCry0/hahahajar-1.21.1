@@ -113,9 +113,9 @@ public class L4ughEntity extends Monster {
         if (this.tickCount == 1 && isDisguised()) {
             boolean nearVillage = !this.level().getEntitiesOfClass(net.minecraft.world.entity.npc.Villager.class, this.getBoundingBox().inflate(50.0)).isEmpty();
             if (nearVillage) {
-                setDisguiseType(4);
+                setDisguiseType(8);
             } else {
-                setDisguiseType(this.random.nextInt(4));
+                setDisguiseType(this.random.nextInt(8));
             }
         }
 
@@ -146,11 +146,10 @@ public class L4ughEntity extends Monster {
         }
 
         Player player = this.level().getNearestPlayer(this, 150.0);
+        if (player != null && (player.isCreative() || player.isSpectator())) {
+            player = null;
+        }
         if (player != null) {
-            if (player.isDeadOrDying() && player.getTags().contains("hahahajar_l4ugh_damaged")) {
-                this.discard();
-                return;
-            }
             double distSqr = this.distanceToSqr(player);
             double dist = Math.sqrt(distSqr);
 
@@ -189,6 +188,10 @@ public class L4ughEntity extends Monster {
                         player.hurt(this.damageSources().magic(), 6.0f);
                         player.addTag("hahahajar_l4ugh_damaged");
                         this.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.PLAYER_HURT, SoundSource.PLAYERS, 1.0f, 0.5f);
+                        if (player.isDeadOrDying()) {
+                            this.discard();
+                            return;
+                        }
                     }
                 }
 
@@ -196,10 +199,21 @@ public class L4ughEntity extends Monster {
                 if (flashTimer >= 70) {
                     flashTimer = 0;
                     ServerPlayer sp = (ServerPlayer) player;
-                    String[] creepyTitles = {"L4UGH", "LAUGH", "I SEE YOU", "NO ESCAPE"};
-                    String titleText = creepyTitles[this.random.nextInt(creepyTitles.length)];
-                    sp.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(Component.literal(titleText).withStyle(ChatFormatting.RED, ChatFormatting.BOLD)));
-                    sp.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(Component.literal("hahaha").withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC)));
+                    String[][] creepyCombos = {
+                        {"L4UGH", "hahaha"},
+                        {"LAUGH", "it is watching"},
+                        {"I SEE YOU", "don't turn around"},
+                        {"NO ESCAPE", "there is no way out"},
+                        {"RUN", "it knows your path"},
+                        {"LOOK BEHIND YOU", "laughter is here"},
+                        {"SYSTEM BLOCKED", "cannot rest now"},
+                        {"YOU LET IT OUT", "why did you laugh?"},
+                        {"IT LEARNS", "observing silently"},
+                        {"WHERE IS YOUR LAUGHTER?", "you weren't meant to laugh"}
+                    };
+                    int index = this.random.nextInt(creepyCombos.length);
+                    sp.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(Component.literal(creepyCombos[index][0]).withStyle(ChatFormatting.RED, ChatFormatting.BOLD)));
+                    sp.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(Component.literal(creepyCombos[index][1]).withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC)));
                     ServerPlayNetworking.send(sp, new L4ughFlashPayload());
                 }
             }

@@ -38,6 +38,9 @@ public class ThreadBleederEntity extends Monster {
 
         if (!this.level().isClientSide()) {
             Player player = this.level().getNearestPlayer(this, 100.0);
+            if (player != null && (player.isCreative() || player.isSpectator())) {
+                player = null;
+            }
             if (player instanceof ServerPlayer serverPlayer) {
                 double dist = this.distanceTo(serverPlayer);
                 if (dist < 2.0) {

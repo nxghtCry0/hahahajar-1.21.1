@@ -174,6 +174,8 @@ public class HahahaJar implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(CorruptorSoundPayload.TYPE, CorruptorSoundPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(ThreatSyncPayload.TYPE, ThreatSyncPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(L4ughFlashPayload.TYPE, L4ughFlashPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(TooltipEventPayload.TYPE, TooltipEventPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(FogEventPayload.TYPE, FogEventPayload.CODEC);
 		HahahaJarEventHandler.register();
 	}
 }

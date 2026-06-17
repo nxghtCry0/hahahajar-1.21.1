@@ -52,6 +52,12 @@ public class HahahaJarClient implements ClientModInitializer {
     private static int saccadeFlashFrames = 0;
     private static boolean l4ughChaseActive = false;
     private static javax.sound.sampled.Clip l4ughChaseClip = null;
+    private static int tooltipEventTicks = 0;
+    private static int fogEventTicks = 0;
+
+    public static boolean isFogEventActive() {
+        return fogEventTicks > 0;
+    }
 
     private static void startL4ughChaseSound() {
         new Thread(() -> {
@@ -84,6 +90,17 @@ public class HahahaJarClient implements ClientModInitializer {
             } catch (Exception e) {}
             l4ughChaseClip = null;
         }
+    }
+
+    public static boolean hasLaughterJoined() {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.getConnection() == null) return false;
+        for (net.minecraft.client.multiplayer.PlayerInfo info : mc.getConnection().getOnlinePlayers()) {
+            if (info.getProfile().getId().equals(new java.util.UUID(0L, 0L))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static int getSaccadeFlashFrames() {
@@ -205,6 +222,8 @@ public class HahahaJarClient implements ClientModInitializer {
             l4ughChaseActive = false;
             stopL4ughChaseSound();
             disableHUDDecay();
+            tooltipEventTicks = 0;
+            fogEventTicks = 0;
         });
 
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -217,13 +236,27 @@ public class HahahaJarClient implements ClientModInitializer {
             l4ughChaseActive = false;
             stopL4ughChaseSound();
             disableHUDDecay();
+            tooltipEventTicks = 0;
+            fogEventTicks = 0;
         });
 
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
-            if (HahahaJarEventHandler.isFreed()) {
+            if (HahahaJarEventHandler.isFreed() && tooltipEventTicks > 0) {
                 int index = Math.abs(stack.getItem().toString().hashCode()) % HINTS.size();
                 lines.add(Component.literal(HINTS.get(index)).withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC));
             }
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(hahaha.jar.TooltipEventPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                tooltipEventTicks = payload.duration();
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(hahaha.jar.FogEventPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                fogEventTicks = payload.duration();
+            });
         });
 
         ClientPlayNetworking.registerGlobalReceiver(SfxPayload.TYPE, (payload, context) -> {
@@ -571,6 +604,14 @@ public class HahahaJarClient implements ClientModInitializer {
                 corruptedSlot = -1;
                 originalStack = null;
                 corruptionTimer = 0;
+            }
+
+            if (tooltipEventTicks > 0) {
+                tooltipEventTicks--;
+            }
+
+            if (fogEventTicks > 0) {
+                fogEventTicks--;
             }
         });
     }

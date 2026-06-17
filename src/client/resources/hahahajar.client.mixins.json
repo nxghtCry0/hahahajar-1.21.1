@@ -10,7 +10,11 @@
 		"PlayerInfoMixin",
 		"SubtitleOverlayMixin",
 		"GameRendererMixin",
-		"GuiMixin"
+		"GuiMixin",
+		"TitleScreenMixin",
+		"LogoRendererMixin",
+		"FogRendererMixin",
+		"ClientLevelMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
