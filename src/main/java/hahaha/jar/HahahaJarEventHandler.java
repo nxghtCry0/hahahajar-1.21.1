@@ -473,8 +473,34 @@ public class HahahaJarEventHandler {
         player.containerMenu.broadcastChanges();
     }
 
+    public static void triggerTeddy(ServerPlayer player) {
+        ServerLevel world = player.serverLevel();
+        BlockPos finalSpawnPos = null;
+        for (int i = 0; i < 10; i++) {
+            double angle = player.getRandom().nextDouble() * Math.PI * 2;
+            double distance = 25.0 + player.getRandom().nextDouble() * 10.0;
+            double spawnX = player.getX() + Math.cos(angle) * distance;
+            double spawnZ = player.getZ() + Math.sin(angle) * distance;
+            BlockPos spawnPos = LaughEchoEntity.findSpawnPos(world, spawnX, player.getY(), spawnZ);
+            finalSpawnPos = spawnPos;
+            List<net.minecraft.world.entity.LivingEntity> entities = world.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, new net.minecraft.world.phys.AABB(spawnPos).inflate(12.0));
+            entities.remove(player);
+            if (entities.isEmpty()) {
+                break;
+            }
+        }
+        if (finalSpawnPos != null) {
+            TeddyEntity teddy = HahahaJar.TEDDY.create(world);
+            if (teddy != null) {
+                teddy.setTargetPlayerUuid(player.getUUID());
+                teddy.moveTo(finalSpawnPos.getX() + 0.5, finalSpawnPos.getY(), finalSpawnPos.getZ() + 0.5, player.getRandom().nextFloat() * 360.0f, 0.0f);
+                world.addFreshEntity(teddy);
+            }
+        }
+    }
+
     private static void triggerRandomEvent(ServerPlayer player) {
-        int event = player.getRandom().nextInt(16);
+        int event = player.getRandom().nextInt(17);
         if (event == 0) {
             triggerFlicker(player);
         } else if (event == 1) {
@@ -505,8 +531,10 @@ public class HahahaJarEventHandler {
             triggerTooltipEvent(player);
         } else if (event == 14) {
             triggerFogEvent(player);
-        } else {
+        } else if (event == 15) {
             triggerHole(player);
+        } else {
+            triggerTeddy(player);
         }
 
         if (player.getRandom().nextInt(3) == 0) {
@@ -517,6 +545,31 @@ public class HahahaJarEventHandler {
     public static void register() {
         checkObsMode();
         loadTrackedBlocks();
+
+        net.fabricmc.fabric.api.message.v1.ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
+            String text = message.signedContent();
+            if (text != null && text.trim().equalsIgnoreCase("Friendly?")) {
+                ServerLevel world = sender.serverLevel();
+                for (TeddyEntity teddy : world.getEntitiesOfClass(TeddyEntity.class, sender.getBoundingBox().inflate(50.0))) {
+                    Vec3 toTeddy = teddy.position().subtract(sender.getEyePosition(1.0f)).normalize();
+                    Vec3 look = sender.getViewVector(1.0f);
+                    double dot = look.dot(toTeddy);
+                    if (dot > 0.3 && sender.hasLineOfSight(teddy)) {
+                        L4ughEntity l4ugh = HahahaJar.L4UGH.create(world);
+                        if (l4ugh != null) {
+                            l4ugh.setTargetPlayerUuid(sender.getUUID());
+                            l4ugh.setDisguised(false);
+                            l4ugh.moveTo(teddy.getX(), teddy.getY(), teddy.getZ(), teddy.getYRot(), teddy.getXRot());
+                            world.addFreshEntity(l4ugh);
+                            sender.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(Component.literal("L4UGH").withStyle(ChatFormatting.RED, ChatFormatting.BOLD)));
+                            sender.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(Component.literal("RUN RUN RUN").withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC)));
+                            ServerPlayNetworking.send(sender, new L4ughFlashPayload());
+                            teddy.discard();
+                        }
+                    }
+                }
+            }
+        });
         try {
             for (java.lang.reflect.Method method : Class.forName("net.minecraft.client.gui.components.LogoRenderer").getDeclaredMethods()) {
                 System.out.println("LOGORENDERER METHOD: " + method.getName() + " RETURNS: " + method.getReturnType().getName() + " PARAMS: " + java.util.Arrays.toString(method.getParameterTypes()));
@@ -1511,6 +1564,14 @@ public class HahahaJarEventHandler {
                             ServerPlayer player = context.getSource().getPlayerOrException();
                             triggerHole(player);
                             context.getSource().sendSuccess(() -> Component.literal("Triggered hole structure event").withStyle(ChatFormatting.GREEN), false);
+                            return 1;
+                        })
+                    )
+                    .then(Commands.literal("teddy")
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            triggerTeddy(player);
+                            context.getSource().sendSuccess(() -> Component.literal("Triggered teddy event").withStyle(ChatFormatting.GREEN), false);
                             return 1;
                         })
                     )

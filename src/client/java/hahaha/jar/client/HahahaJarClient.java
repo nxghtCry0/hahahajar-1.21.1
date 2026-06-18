@@ -25,6 +25,7 @@ import hahaha.jar.LaughEchoEntity;
 import java.util.List;
 
 public class HahahaJarClient implements ClientModInitializer {
+    public static final net.minecraft.client.model.geom.ModelLayerLocation TEDDY_LAYER = new net.minecraft.client.model.geom.ModelLayerLocation(net.minecraft.resources.ResourceLocation.parse("hahahajar:teddy"), "main");
     private static int pullTicks = 0;
     private static float targetYaw = 0.0f;
     private static int chaseTicks = 0;
@@ -54,9 +55,18 @@ public class HahahaJarClient implements ClientModInitializer {
     private static javax.sound.sampled.Clip l4ughChaseClip = null;
     private static int tooltipEventTicks = 0;
     private static int fogEventTicks = 0;
+    private static int teddyJumpscareTicks = 0;
 
     public static boolean isFogEventActive() {
         return fogEventTicks > 0;
+    }
+
+    public static int getTeddyJumpscareTicks() {
+        return teddyJumpscareTicks;
+    }
+
+    public static void setTeddyJumpscareTicks(int ticks) {
+        teddyJumpscareTicks = ticks;
     }
 
     private static void startL4ughChaseSound() {
@@ -205,12 +215,33 @@ public class HahahaJarClient implements ClientModInitializer {
         "hahaha"
     );
 
+    private static void playBreakSound() {
+        new Thread(() -> {
+            try {
+                java.io.File tempFile = new java.io.File(System.getProperty("java.io.tmpdir"), "teddy_break.mp3");
+                try (java.io.InputStream in = HahahaJarClient.class.getResourceAsStream("/break.mp3")) {
+                    if (in != null) {
+                        java.nio.file.Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+                String cmd = "Add-Type -AssemblyName PresentationCore; " +
+                             "$player = New-Object System.Windows.Media.MediaPlayer; " +
+                             "$player.Open('" + tempFile.getAbsolutePath().replace("\\", "\\\\") + "'); " +
+                             "$player.Play(); " +
+                             "Start-Sleep -Seconds 5;";
+                new ProcessBuilder("powershell", "-Command", cmd).start();
+            } catch (Exception e) {}
+        }).start();
+    }
+
     @Override
     public void onInitializeClient() {
+        net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry.registerModelLayer(TEDDY_LAYER, TeddyModel::createBodyLayer);
         EntityRendererRegistry.register(HahahaJar.LAUGH_ECHO, LaughEchoRenderer::new);
         EntityRendererRegistry.register(HahahaJar.THREAD_BLEEDER, ThreadBleederRenderer::new);
         EntityRendererRegistry.register(HahahaJar.FRAME_LOCK_PORTRAIT, FrameLockPortraitRenderer::new);
         EntityRendererRegistry.register(HahahaJar.L4UGH, L4ughRenderer::new);
+        EntityRendererRegistry.register(HahahaJar.TEDDY, TeddyRenderer::new);
 
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             lagActive = false;
@@ -364,6 +395,13 @@ public class HahahaJarClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(hahaha.jar.L4ughFlashPayload.TYPE, (payload, context) -> {
             context.client().execute(() -> {
                 saccadeFlashFrames = 3;
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(hahaha.jar.TeddySnapPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                playBreakSound();
+                teddyJumpscareTicks = 30;
             });
         });
         new Thread(() -> {

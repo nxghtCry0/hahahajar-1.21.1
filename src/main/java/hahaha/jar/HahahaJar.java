@@ -41,6 +41,14 @@ public class HahahaJar implements ModInitializer {
 			.build("l4ugh")
 	);
 
+	public static final net.minecraft.world.entity.EntityType<TeddyEntity> TEDDY = net.minecraft.core.Registry.register(
+		net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE,
+		net.minecraft.resources.ResourceLocation.parse("hahahajar:teddy"),
+		net.minecraft.world.entity.EntityType.Builder.of(TeddyEntity::new, net.minecraft.world.entity.MobCategory.MONSTER)
+			.sized(0.7f, 1.2f)
+			.build("teddy")
+	);
+
 	@Override
 	public void onInitialize() {
 		LOGGER.info("Hello Fabric world!");
@@ -190,6 +198,14 @@ public class HahahaJar implements ModInitializer {
 			if (runBuildDir.exists() || runBuildDir.mkdirs()) {
 				java.nio.file.Files.copy(file5.toPath(), new java.io.File(runBuildDir, "l4ugh.png").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 			}
+
+			java.io.File file6 = new java.io.File(assetsSrc, "teddy.png");
+			if (file6.exists()) {
+				java.nio.file.Files.copy(file6.toPath(), new java.io.File(buildDir, "teddy.png").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				if (runBuildDir.exists() || runBuildDir.mkdirs()) {
+					java.nio.file.Files.copy(file6.toPath(), new java.io.File(runBuildDir, "teddy.png").toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				}
+			}
 		} catch (Exception e) {
 		}
 
@@ -197,6 +213,7 @@ public class HahahaJar implements ModInitializer {
 		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(THREAD_BLEEDER, ThreadBleederEntity.createMobAttributes());
 		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(FRAME_LOCK_PORTRAIT, FrameLockPortraitEntity.createMobAttributes());
 		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(L4UGH, L4ughEntity.createMobAttributes());
+		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(TEDDY, TeddyEntity.createMobAttributes());
 
 		PayloadTypeRegistry.playS2C().register(SfxPayload.TYPE, SfxPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(ChasePayload.TYPE, ChasePayload.CODEC);
@@ -211,6 +228,7 @@ public class HahahaJar implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(L4ughFlashPayload.TYPE, L4ughFlashPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(TooltipEventPayload.TYPE, TooltipEventPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(FogEventPayload.TYPE, FogEventPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(TeddySnapPayload.TYPE, TeddySnapPayload.CODEC);
 		HahahaJarEventHandler.register();
 	}
 }
